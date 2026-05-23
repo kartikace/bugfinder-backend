@@ -227,6 +227,7 @@ def serialize_scan(s):
     }
 
 with app.app_context():
+    os.makedirs(app.instance_path, exist_ok=True)
     db.create_all()
     from werkzeug.security import generate_password_hash as gph
     if not User.query.filter_by(username='admin').first():
