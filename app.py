@@ -226,17 +226,18 @@ def serialize_scan(s):
         'completed_at': s.completed_at.isoformat() if s.completed_at else None,
     }
 
+with app.app_context():
+    db.create_all()
+    from werkzeug.security import generate_password_hash as gph
+    if not User.query.filter_by(username='admin').first():
+        db.session.add(User(
+            username='admin',
+            email='admin@bugfinder.local',
+            password_hash=gph('admin123')
+        ))
+        db.session.commit()
+        print("Default user created: admin / admin123")
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        from werkzeug.security import generate_password_hash as gph
-        if not User.query.filter_by(username='admin').first():
-            db.session.add(User(
-                username='admin',
-                email='admin@bugfinder.local',
-                password_hash=gph('admin123')
-            ))
-            db.session.commit()
-            print("Default user created: admin / admin123")
     print("Backend API running on http://localhost:5000")
     app.run(debug=True, host='0.0.0.0', port=5000)
