@@ -4,7 +4,6 @@ flask-cors==4.0.1
 werkzeug==3.0.3
 requests==2.32.3
 reportlab==4.2.2
-python-whois==0.9.4
 dnspython==2.6.1
 gunicorn==22.0.0
 urllib3==2.2.2
