@@ -165,6 +165,12 @@ def register():
     if len(password) < 8:
         return jsonify({'error': 'Password must be at least 8 characters long'}), 400
         
+    # Enforce robust email format regex check (Self-Discovered Bug 2)
+    import re
+    EMAIL_REGEX = re.compile(r'^[\w\.-]+@[\w\.-]+\.\w+$')
+    if not EMAIL_REGEX.match(email):
+        return jsonify({'error': 'Invalid email format'}), 400
+        
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'Username already taken'}), 409
     if User.query.filter_by(email=email).first():
@@ -286,6 +292,16 @@ def delete_scan(scan_id):
     scan = Scan.query.get_or_404(scan_id)
     if scan.user_id != request.current_user.id:
         return jsonify({'error': 'Access denied'}), 403
+        
+    # Securely delete local PDF report file from disk to prevent disk leaks (Self-Discovered Bug 1)
+    if scan.pdf_path:
+        pdf_abs_path = os.path.abspath(scan.pdf_path)
+        if os.path.exists(pdf_abs_path):
+            try:
+                os.remove(pdf_abs_path)
+            except Exception as e:
+                print(f"Failed to delete PDF file: {str(e)}")
+                
     db.session.delete(scan)
     db.session.commit()
     return jsonify({'message': 'Scan deleted'})
@@ -378,12 +394,19 @@ with app.app_context():
     db.create_all()
     from werkzeug.security import generate_password_hash as gph
     
-    # Secure default credentials from environment (B-01)
+    # Secure default credentials from environment (R-01)
     admin_user = os.environ.get('DEFAULT_ADMIN_USERNAME', 'admin')
-    admin_pass = os.environ.get('DEFAULT_ADMIN_PASSWORD', 'admin123')
+    admin_pass = os.environ.get('DEFAULT_ADMIN_PASSWORD')
     
-    if is_prod and admin_user == 'admin' and admin_pass == 'admin123':
-        print("⚠️  SECURITY WARNING: Using hardcoded default credentials in production! Please set DEFAULT_ADMIN_USERNAME and DEFAULT_ADMIN_PASSWORD environment variables.")
+    if is_prod and not admin_pass:
+        # Automatically generate a secure, cryptographically random admin password in production
+        import secrets
+        admin_pass = secrets.token_hex(16)
+        print("⚠️  SECURITY ALERT: Seeding admin account with automatically generated secure random password since DEFAULT_ADMIN_PASSWORD was not set.")
+        print(f"👉 GENERATED PRODUCTION ADMIN PASSWORD: {admin_pass}")
+    elif not admin_pass:
+        # In development fallback to standard
+        admin_pass = 'admin123'
         
     if not User.query.filter_by(username=admin_user).first():
         db.session.add(User(
